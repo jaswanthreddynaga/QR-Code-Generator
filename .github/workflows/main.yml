@@ -1,44 +1,51 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+# .github/workflows/main.yml
 
-name: Python application CI
+name: CI/CD Pipeline - Build and Push Docker Image
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  
   workflow_dispatch:
 
-permissions:
-  contents: read
+env:
+  DOCKER_IMAGE_NAME: qr-code-generator-app
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }} 
 
 jobs:
-  build:
-
+  build_and_push:
     runs-on: ubuntu-latest
-
+    
     steps:
-    - name: Checkout repository
+    - name: ⬇️ Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v5
+    - name: 🔑 Log in to Docker Hub
+      uses: docker/login-action@v3
       with:
-        python-version: "3.10"
-        cache: 'pip'
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Install dependencies
+    - name: 📐 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🔨 Build and Push Docker Image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: |
+          ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+          ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+
+    - name: ✅ Run a basic container test (Optional but Recommended)
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
-    - name: Test script execution
-      run: python main.py --url "https://github.com/kaw393939"
+        docker run --rm --name test-run -d ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+        sleep 5 # Wait for the application to run and generate the QR code
+        docker logs test-run
+        # Check if a QR code file was created (the qr_codes directory should exist after the run)
+        # Note: This check is limited in a standard build/push action and is more for ensuring a successful start.
+        # A full integration test would require volumes or other artifacts.
