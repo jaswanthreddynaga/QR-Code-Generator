@@ -41,11 +41,19 @@ jobs:
           ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
           ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
 
-    - name: ✅ Run a basic container test (Optional but Recommended)
+    - name: ✅ Run a basic container test
+  # Temporarily remove '--rm' to allow logs to be captured before manual cleanup
       run: |
-        docker run --rm --name test-run -d ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
-        sleep 5 # Wait for the application to run and generate the QR code
+        # 1. Start the container in detached mode (without --rm)
+        docker run -d --name test-run ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+        
+        # 2. Wait for the application to finish its task (5 seconds is usually enough)
+        sleep 5 
+        
+        # 3. Print the logs (this will succeed now as the container still exists, though it has exited)
         docker logs test-run
-        # Check if a QR code file was created (the qr_codes directory should exist after the run)
-        # Note: This check is limited in a standard build/push action and is more for ensuring a successful start.
-        # A full integration test would require volumes or other artifacts.
+        
+        # 4. Cleanup: Stop and remove the container
+        docker stop test-run
+        docker rm test-run
+      shell: /usr/bin/bash -e {0}
